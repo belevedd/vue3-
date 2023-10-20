@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>测试 reactive</title>
+    <script src="../../dist/vue.js"></script>
+  </head>
+  <body></body>
+  <script>
+    const { reactive } = Vue
+
+    const obj = reactive({
+      name: '张三'
+    })
+
+    console.log(obj.name)
+
+    obj.name = '李四'
+  </script>
+</html>
