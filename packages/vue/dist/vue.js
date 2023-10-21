@@ -1,6 +1,18 @@
 var Vue = (function (exports) {
     'use strict';
 
+    var isArray = Array.isArray;
+    var isObject = function (val) {
+        return val !== null && typeof val === 'object';
+    };
+    /**
+     * 对比两个数据是否发生改变
+     */
+    var hasChanged = function (value, oldValue) {
+        // Object.is 判断两个值是否相同
+        return !Object.is(value, oldValue);
+    };
+
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
 
@@ -54,8 +66,6 @@ var Vue = (function (exports) {
         }
         return to.concat(ar || Array.prototype.slice.call(from));
     }
-
-    var isArray = Array.isArray;
 
     /**
      * 创建并返回一个 Set 合集
@@ -226,17 +236,17 @@ var Vue = (function (exports) {
 
     /**
      * 响应性 Map 缓存对象
-     * WeakMap 对象是一组键/值对的集合, 其中的键是弱引用的。其键必须是对象，而值可以是任意的。
+     * WeakMap 对象是一组键/值对的集合, 其中的键是弱引用的。其键必须是对象, 而值可以是任意的。
      *  -弱引用: 不会影像垃圾回收机制。即: WeakMap 的 key 不再存在任何引用时, 会被直接回收。
      *  -强引用: 会影像垃圾回收机制。存在强引用的对象永远不会被回收。
-     *  -使用 WeakMap 为了优化性能，减少内存占用。
+     *  -使用 WeakMap 为了优化性能, 减少内存占用。
      * Map 对象保存键/值对, 并且能够记住键的原始插入顺序。任何值都可以作为一个键或一个值。
      * key: target
      * val: proxy
      */
     var reactiveMap = new WeakMap();
     /**
-     * 为复杂数据类型，创建响应性对象
+     * 为复杂数据类型, 创建响应性对象
      * @param target 被代理对象
      * @returns 代理对象
      */
@@ -252,7 +262,7 @@ var Vue = (function (exports) {
      */
     function createReactiveObject(target, baseHandlers, proxyMap) {
         // 如果该实例已经被代理, 则直接读取即可
-        // WeakMap.get(key) 返回 WeakMap 中与 key 相关联的值，如果 key 不存在则返回 undefined。
+        // WeakMap.get(key) 返回 WeakMap 中与 key 相关联的值, 如果 key 不存在则返回 undefined。
         // 如果存在返回 target 对象的 proxy 代理对象
         var existingProxy = proxyMap.get(target);
         if (existingProxy) {
@@ -261,16 +271,112 @@ var Vue = (function (exports) {
         // 未被代理则生成 proxy 实例
         var proxy = new Proxy(target, baseHandlers);
         // 缓存代理对象
-        // WeakMap.set(key，value) 给 WeakMap 中的 key 设置一个 value。该方法返回一个 WeakMap 对象。
+        // WeakMap.set(key, value) 给 WeakMap 中的 key 设置一个 value。该方法返回一个 WeakMap 对象。
         // 给 proxyMap 中的 target 设置一个 value: proxy 的代理对象
         // 当调用多个 reactive 方法时, target 会相应添加进 proxyMap 数组中
         // eg:[{key: target, value: proxy}, {key: target, value: proxy} ...]
         proxyMap.set(target, proxy);
         return proxy;
     }
+    var toReactive = function (value) {
+        return isObject(value) ? reactive(value) : value;
+    };
+
+    /**
+     * 获取一个内部值, 并返回一个响应的 ref 对象。
+     * 它只有一个属性 .value 指向内部值。
+     * @param value 在 ref 中包装的对象
+     * @returns ref 对象
+     */
+    function ref(value) {
+        return createRef(value, false);
+    }
+    /**
+     * 创建响应性 ref
+     */
+    function createRef(rawValue, shallow) {
+        // 如果传入的 rawValue 为 ref 对象, 则直接返回 rawValue
+        if (isRef(rawValue)) {
+            return rawValue;
+        }
+        // 如果传入的 rawValue 不是 ref 对象, 返回 ref 类
+        return new RefImpl(rawValue, shallow);
+    }
+    /**
+     * 创建 ref 类, 包含get/set value 方法。
+     * 当执行 ref.value 时会执行 get 方法;
+     *  -当执行 ref.value.property = xxx 时,
+     *    --先执行 ref.value 触发 ref 的 get value 方法;
+     *    --再执行 reactive{ref.value}.property = xxx 触发 reactive 的 set 方法。
+     * 当执行 ref.value = xxx 时会执行 set 方法。
+     */
+    var RefImpl = /** @class */ (function () {
+        function RefImpl(value, __v_isShallow) {
+            this.__v_isShallow = __v_isShallow;
+            this.dep = undefined;
+            this.__v_isRef = true;
+            /**
+             * 如果传入的 __v_isShallow 为 true 返回 value;
+             * 如果传入的 __v_isShallow 为 false 判断 value 的类型:
+             *  -当 value 为对象类型时, 执行 reactive(value) 变为 Proxy(value);
+             *  -当 value 不为对象类型时, 直接返回 value。
+             */
+            this._rawValue = value;
+            this._value = __v_isShallow ? value : toReactive(value);
+        }
+        Object.defineProperty(RefImpl.prototype, "value", {
+            // 执行 ref.value 时调用的 get value 方法
+            get: function () {
+                // 收集依赖
+                trackRefValue(this);
+                return this._value;
+            },
+            // 执行 ref.value = xxx 时调用的 set value 方法
+            set: function (newVal) {
+                // 如果新值发生改变
+                if (hasChanged(newVal, this._rawValue)) {
+                    // 将原先的值赋值为 newVal
+                    this._rawValue = newVal;
+                    // 对当前 _value 重新赋值:
+                    // -如果新值是对象类型, 返回reactive(newVal);
+                    // -如果新值不是对象类型, 直接返回。
+                    this._value = toReactive(newVal);
+                    // 触发依赖
+                    triggerRefValue(this);
+                }
+            },
+            enumerable: false,
+            configurable: true
+        });
+        return RefImpl;
+    }());
+    /**
+     * 触发 get value 的时候进行依赖收集
+     */
+    function trackRefValue(ref) {
+        if (activeEffect) {
+            trackEffects(ref.dep || (ref.dep = createDep()));
+        }
+    }
+    /**
+     * 触发 set value 的时候进行触发依赖
+     */
+    function triggerRefValue(ref) {
+        if (ref.dep) {
+            // 触发所有 ref.dep 中的 effect 函数
+            triggerEffects(ref.dep);
+        }
+    }
+    /**
+     * 是否为 ref
+     */
+    function isRef(r) {
+        return !!(r && r.__v_isRef === true);
+    }
 
     exports.effect = effect;
     exports.reactive = reactive;
+    exports.ref = ref;
 
     Object.defineProperty(exports, '__esModule', { value: true });
 

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>测试 ref</title>
+    <script src="../../dist/vue.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+  <script>
+    const { ref, effect } = Vue
+
+    const obj = ref({
+      name: '张三'
+    })
+
+    effect(() => {
+      document.querySelector('#app').innerText = obj.value.name
+    })
+
+    setTimeout(() => {
+      // obj.value 触发了一次 ref 的 get value
+      // (obj.value).name = '李四' 触发了一个 reactive 的 setter
+      obj.value.name = '李四'
+    }, 2000)
+  </script>
+</html>
