@@ -227,3 +227,86 @@ function triggerEffect(effect: ReactiveEffect) {
 ### 1.4. 为什么 reactive 只能是对 object 进行响应？
 
 因为使用的 Proxy 语句 new Proxy(target, handler)，target 只能是任何类型的对象，包括原生数组、函数、甚至另一个代理。
+
+## 2.Ref 响应式原理
+
+- 在执行以下代码时：
+
+```javascript
+const obj = ref({
+  name: '张三'
+})
+// 或
+const name = ref('张三')
+```
+
+### 2.1.执行 ref 函数
+
+1. 首先执行 ref 函数：
+
+```typescript
+// ref.ts
+function ref(value?: unknown) {
+  return createRef(value, false)
+}
+```
+
+在此函数中，返回一个 createRef 函数。
+
+2. 执行返回的 createRef 函数：
+
+```typescript
+// ref.ts
+function createRef(rawValue: unknown, shallow: boolean) {
+  if (isRef(rawValue)) {
+    return rawValue
+  }
+
+  return new RefImpl(rawValue, shallow)
+}
+```
+
+```typescript
+// ref.ts
+class RefImpl<T> {
+  private _value: T
+  private _rawValue: T
+  public dep?: Dep = undefined
+  public readonly __v_isRef = true
+
+  constructor(value: T, public readonly __v_isShallow: boolean) {
+    this._rawValue = value
+    this._value = __v_isShallow ? value : toReactive(value)
+  }
+
+  get value() {
+    trackRefValue(this)
+    return this._value
+  }
+
+  set value(newVal) {
+    if (hasChanged(newVal, this._rawValue)) {
+      this._rawValue = newVal
+      this._value = toReactive(newVal)
+      triggerRefValue(this)
+    }
+  }
+}
+```
+
+### 2.2.ref 响应性
+
+1. 如果 ref 内部是一个对象类型时：
+   1. 首先在执行 ref.value 时，触发 ref 的 get value 方法，将 ref.value 返回为 reactive(ref.value)。
+   2. 执行 ref.value.property 时，相当于 reactive(ref.value).property 触发 reactive 的 setter 方法；
+   3. 执行 ref.value.property = xxx 时，相当于 reactive(ref.value).property = xxx 触发 reactive 的 getter 方法；
+   4. 所以 ref 的对象类型的响应性，其实是就是 reactive 的响应性。
+2. 如果 ref 内部是一个基本类型时：
+   1. 首先在执行 ref.value 时，触发 ref 的 get value 方法，将 effect 函数存储在 ref.dep 中；
+   2. 执行 ref.value = xxx 时，触发 ref 的 set value 方法，将 ref.dep 中的所有 effect 函数循环调用，实现数据的响应式修改。
+
+### 2.3.为什么 ref 的调用要使用 .value 的方式？
+
+因为对于基本类型来说，并没有通过任何方式将数据绑定成响应式数据，ref 实现基本类型数据的响应性，是通过主动调用 RefImpl 类中的 get value 或 set value 方法来实现的。
+
+所以 ref 在调用的时候需要使用 ref.value 的方式。
