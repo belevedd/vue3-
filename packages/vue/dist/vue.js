@@ -74,7 +74,7 @@ var Vue = (function (exports) {
      *   key(响应性对象): targetObj,
      *   value(Map 对象): {
      *     key(响应性对象的指定属性): targetObj.key,
-     *     value(指定对象的指定属性的 执行函数合集 Set 数组): [ReactiveEffect, ReactiveEffect, ...]
+     *     value(指定对象的指定属性的 执行函数合集 Set 对象): [ReactiveEffect, ReactiveEffect, ...]
      *   }
      * }
      */
@@ -119,7 +119,7 @@ var Vue = (function (exports) {
         }
         // 尝试从 depsMap 中, 根据 key 获取 Set
         var dep = depsMap.get(key);
-        // 如果获取到的 Set 不存在, 则生成新的 Set 数组, 并把该 Set 数组赋值给对应的 value
+        // 如果获取到的 Set 不存在, 则生成新的 Set 对象, 并把该 Set 对象赋值给对应的 value
         if (!dep) {
             depsMap.set(key, (dep = createDep()));
         }
@@ -148,7 +148,7 @@ var Vue = (function (exports) {
         // 如果 map 不存在，则直接 return
         if (!depsMap)
             return;
-        // 根据 key 获取存储的 dep (Set 数组)
+        // 根据 key 获取存储的 dep (Set 对象)
         var dep = depsMap.get(key);
         // 如果 dep 不存在，则直接 return
         if (!dep)
