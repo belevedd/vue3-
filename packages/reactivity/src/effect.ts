@@ -17,16 +17,23 @@ type KeyToDepMap = Map<any, Dep>
  */
 const targetMap = new WeakMap<any, KeyToDepMap>()
 
+export interface ReactiveEffectOptions {
+  lazy?: boolean
+  scheduler?: EffectScheduler
+}
+
 /**
  * 给函数注册响应式更新
  * 给定的函数将立即运行一次。
  * 每当在其中访问的任何响应性属性被更新时，该函数将再次运行。
  * @param fn 响应式更新的函数
  */
-export function effect<T = any>(fn: () => T) {
+export function effect<T = any>(fn: () => T, options?: ReactiveEffectOptions) {
   const _effect = new ReactiveEffect(fn)
 
-  _effect.run()
+  if (!options || !options.lazy) {
+    _effect.run()
+  }
 }
 
 // 记录当前活跃的 响应函数

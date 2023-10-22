@@ -98,9 +98,11 @@ var Vue = (function (exports) {
      * 每当在其中访问的任何响应性属性被更新时，该函数将再次运行。
      * @param fn 响应式更新的函数
      */
-    function effect(fn) {
+    function effect(fn, options) {
         var _effect = new ReactiveEffect(fn);
-        _effect.run();
+        if (!options || !options.lazy) {
+            _effect.run();
+        }
     }
     // 记录当前活跃的 响应函数
     var activeEffect;
