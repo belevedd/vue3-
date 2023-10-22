@@ -12,6 +12,9 @@ var Vue = (function (exports) {
         // Object.is 判断两个值是否相同
         return !Object.is(value, oldValue);
     };
+    var isFunction = function (val) {
+        return typeof val === 'function';
+    };
 
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
@@ -102,8 +105,10 @@ var Vue = (function (exports) {
     // 记录当前活跃的 响应函数
     var activeEffect;
     var ReactiveEffect = /** @class */ (function () {
-        function ReactiveEffect(fn) {
+        function ReactiveEffect(fn, scheduler) {
+            if (scheduler === void 0) { scheduler = null; }
             this.fn = fn;
+            this.scheduler = scheduler;
         }
         ReactiveEffect.prototype.run = function () {
             // this = {fn: () => {...}}
@@ -166,13 +171,16 @@ var Vue = (function (exports) {
         triggerEffects(dep);
     }
     function triggerEffects(dep) {
-        var e_1, _a;
+        var e_1, _a, e_2, _b;
         var effects = isArray(dep) ? dep : __spreadArray([], __read(dep), false);
         try {
-            // 依次触发依赖
+            // 依次触发依赖 防止多次调用 computed 发生调用 effect.scheduler() 方法变成死循环
+            // 控制先执行 computed 的 effect
             for (var effects_1 = __values(effects), effects_1_1 = effects_1.next(); !effects_1_1.done; effects_1_1 = effects_1.next()) {
                 var effect_1 = effects_1_1.value;
-                triggerEffect(effect_1);
+                if (effect_1.computed) {
+                    triggerEffect(effect_1);
+                }
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -182,12 +190,34 @@ var Vue = (function (exports) {
             }
             finally { if (e_1) throw e_1.error; }
         }
+        try {
+            for (var effects_2 = __values(effects), effects_2_1 = effects_2.next(); !effects_2_1.done; effects_2_1 = effects_2.next()) {
+                var effect_2 = effects_2_1.value;
+                if (!effect_2.computed) {
+                    triggerEffect(effect_2);
+                }
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (effects_2_1 && !effects_2_1.done && (_b = effects_2.return)) _b.call(effects_2);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
     }
     /**
      * 触发指定依赖
      */
     function triggerEffect(effect) {
-        effect.run();
+        // computed 会传入 scheduler 参数
+        // 如果存在执行，不存在执行 run 函数
+        if (effect.scheduler) {
+            effect.scheduler();
+        }
+        else {
+            effect.run();
+        }
     }
 
     var get = createGetter();
@@ -374,6 +404,64 @@ var Vue = (function (exports) {
         return !!(r && r.__v_isRef === true);
     }
 
+    /**
+     * 创建 computed 类
+     */
+    var ComputedRefImpl = /** @class */ (function () {
+        function ComputedRefImpl(getter) {
+            var _this = this;
+            this.dep = undefined;
+            this.__v_isRef = true;
+            this._dirty = true; // 控制是否执行触发依赖, 实现 computed 当数据发生改变才会重新执行内部函数的原因。
+            this.effect = new ReactiveEffect(getter, function () {
+                // 传入的 scheduler 方法
+                if (!_this._dirty) {
+                    _this._dirty = true;
+                    // 触发依赖
+                    triggerRefValue(_this);
+                }
+            });
+            this.effect.computed = this;
+        }
+        Object.defineProperty(ComputedRefImpl.prototype, "value", {
+            get: function () {
+                // 执行 ref 的依赖收集
+                trackRefValue(this);
+                // 执行 computed 的 getter 参数方法, 并将返回值返回
+                if (this._dirty) {
+                    this._dirty = false;
+                    this._value = this.effect.run();
+                }
+                return this._value;
+            },
+            enumerable: false,
+            configurable: true
+        });
+        return ComputedRefImpl;
+    }());
+    /**
+     * 创建 computed
+     * @param getterOrOptions computed 定义的内部函数或对象
+     * @returns ComputedRefImpl 实例
+     */
+    function computed(getterOrOptions) {
+        var getter;
+        // 如果 getterOrOptions 是函数返沪 true
+        var onlyGetter = isFunction(getterOrOptions);
+        // 如果 getterOrOptions 是函数, 将 getterOrOptions 直接赋值 getter
+        // 如果 getterOrOptions 不是函数, 将 getterOrOptions 的 get 属性赋值给 getter
+        if (onlyGetter) {
+            getter = getterOrOptions;
+        }
+        else {
+            getter = getterOrOptions.get;
+        }
+        // 执行 ComputedRefImpl 实例
+        var cRef = new ComputedRefImpl(getter);
+        return cRef;
+    }
+
+    exports.computed = computed;
     exports.effect = effect;
     exports.reactive = reactive;
     exports.ref = ref;

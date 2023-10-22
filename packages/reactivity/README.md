@@ -310,3 +310,24 @@ class RefImpl<T> {
 因为对于基本类型来说，并没有通过任何方式将数据绑定成响应式数据，ref 实现基本类型数据的响应性，是通过主动调用 RefImpl 类中的 get value 或 set value 方法来实现的。
 
 所以 ref 在调用的时候需要使用 ref.value 的方式。
+
+
+
+## 3.computed 响应式原理
+
+- 计算属性的实例，本质上是一个 ComputedRefImpl 的实例；
+- ComputedRefImpl 中通过 dirty 变量来控制 run 的执行和 triggerRefValue 的触发；
+- 想要访问计算属性的值，必须通过 .value，因为他内部和 ref 一样时通过 get value 来进行实现的；
+- 每次 .value 时都会触发 trackRefValue 即：依赖收集；
+- 在依赖触发时，需要谨记，先触发 computed 的 effect，再触发非 computed 的 effect，以免发生死循环的情况。
+
+
+
+
+
+
+
+
+
+
+

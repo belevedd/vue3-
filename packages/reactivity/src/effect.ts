@@ -1,5 +1,8 @@
 import { isArray } from '@vue/shared'
 import { Dep, createDep } from './dep'
+import { ComputedRefImpl } from './computed'
+
+export type EffectScheduler = (...args: any[]) => any
 
 type KeyToDepMap = Map<any, Dep>
 /**
@@ -30,7 +33,12 @@ export function effect<T = any>(fn: () => T) {
 export let activeEffect: ReactiveEffect | undefined
 
 export class ReactiveEffect<T = any> {
-  constructor(public fn: () => T) {}
+  computed?: ComputedRefImpl<T>
+
+  constructor(
+    public fn: () => T,
+    public scheduler: EffectScheduler | null = null
+  ) {}
 
   run() {
     // this = {fn: () => {...}}
@@ -102,9 +110,18 @@ export function trigger(target: object, key: unknown, newValue: unknown) {
 export function triggerEffects(dep: Dep) {
   const effects = isArray(dep) ? dep : [...dep]
 
-  // 依次触发依赖
+  // 依次触发依赖 防止多次调用 computed 发生调用 effect.scheduler() 方法变成死循环
+  // 控制先执行 computed 的 effect
   for (const effect of effects) {
-    triggerEffect(effect)
+    if (effect.computed) {
+      triggerEffect(effect)
+    }
+  }
+
+  for (const effect of effects) {
+    if (!effect.computed) {
+      triggerEffect(effect)
+    }
   }
 }
 
@@ -112,5 +129,11 @@ export function triggerEffects(dep: Dep) {
  * 触发指定依赖
  */
 export function triggerEffect(effect: ReactiveEffect) {
-  effect.run()
+  // computed 会传入 scheduler 参数
+  // 如果存在执行，不存在执行 run 函数
+  if (effect.scheduler) {
+    effect.scheduler()
+  } else {
+    effect.run()
+  }
 }

@@ -9,3 +9,6 @@ export const isObject = (val: unknown) =>
 export const hasChanged = (value: any, oldValue: any): boolean =>
   // Object.is 判断两个值是否相同
   !Object.is(value, oldValue)
+
+export const isFunction = (val: unknown): val is Function =>
+  typeof val === 'function'

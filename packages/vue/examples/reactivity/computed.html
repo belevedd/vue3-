@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>测试 computed</title>
+    <script src="../../dist/vue.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+  <script>
+    const { reactive, effect, computed } = Vue
+
+    const obj = reactive({
+      name: '张三'
+    })
+
+    const computedObj = computed(() => {
+      return '姓名: ' + obj.name
+    })
+
+    effect(() => {
+      document.querySelector('#app').innerText = computedObj.value
+    })
+
+    /**
+     * 1.触发 reactive 的 setter
+     * 2.setter 触发 reactive 的依赖 () => {return '姓名: ' + obj.name}
+     * 3.() => {return '姓名: ' + obj.name} dep 在 computed 定义时添加了 scheduler
+     * 4.执行 effect.scheduler()
+     * 5.触发 computed 的依赖 () => {document.querySelector('#app').innerText = computedObj.value}
+     * 6.修改DOM 数据
+     */
+    setTimeout(() => {
+      obj.name = '李四'
+    }, 2000)
+  </script>
+</html>
