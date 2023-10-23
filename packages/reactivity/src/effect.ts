@@ -1,4 +1,4 @@
-import { isArray } from '@vue/shared'
+import { extend, isArray } from '@vue/shared'
 import { Dep, createDep } from './dep'
 import { ComputedRefImpl } from './computed'
 
@@ -30,6 +30,12 @@ export interface ReactiveEffectOptions {
  */
 export function effect<T = any>(fn: () => T, options?: ReactiveEffectOptions) {
   const _effect = new ReactiveEffect(fn)
+
+  // 将 options 的属性复制给 _effect
+  // 控制 scheduler 的执行顺序
+  if (options) {
+    extend(_effect, options)
+  }
 
   if (!options || !options.lazy) {
     _effect.run()

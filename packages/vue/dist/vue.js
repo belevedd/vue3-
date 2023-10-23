@@ -15,6 +15,8 @@ var Vue = (function (exports) {
     var isFunction = function (val) {
         return typeof val === 'function';
     };
+    // Object.assign() 静态方法将一个或者多个源对象中所有可枚举的自有属性复制到目标对象，并返回修改后的目标对象。
+    var extend = Object.assign;
 
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
@@ -100,6 +102,11 @@ var Vue = (function (exports) {
      */
     function effect(fn, options) {
         var _effect = new ReactiveEffect(fn);
+        // 将 options 的属性复制给 _effect
+        // 控制 scheduler 的执行顺序
+        if (options) {
+            extend(_effect, options);
+        }
         if (!options || !options.lazy) {
             _effect.run();
         }
@@ -302,6 +309,7 @@ var Vue = (function (exports) {
         }
         // 未被代理则生成 proxy 实例
         var proxy = new Proxy(target, baseHandlers);
+        proxy["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */] = true;
         // 缓存代理对象
         // WeakMap.set(key, value) 给 WeakMap 中的 key 设置一个 value。该方法返回一个 WeakMap 对象。
         // 给 proxyMap 中的 target 设置一个 value: proxy 的代理对象
@@ -463,8 +471,39 @@ var Vue = (function (exports) {
         return cRef;
     }
 
+    var isFlushPending = false;
+    var resolvePromise = Promise.resolve();
+    var pendingPreFlushCbs = [];
+    function queuePreFlushCb(cb) {
+        queueCb(cb, pendingPreFlushCbs);
+    }
+    function queueCb(cb, pendingQueue) {
+        pendingQueue.push(cb);
+        queueFlush();
+    }
+    function queueFlush() {
+        if (!isFlushPending) {
+            isFlushPending = true;
+            resolvePromise.then(flushJobs);
+        }
+    }
+    function flushJobs() {
+        isFlushPending = false;
+        flushPreFlushCbs();
+    }
+    function flushPreFlushCbs() {
+        if (pendingPreFlushCbs.length) {
+            var activePreFlushCbs = __spreadArray([], __read(new Set(pendingPreFlushCbs)), false);
+            pendingPreFlushCbs.length = 0;
+            for (var i = 0; i < activePreFlushCbs.length; i++) {
+                activePreFlushCbs[i]();
+            }
+        }
+    }
+
     exports.computed = computed;
     exports.effect = effect;
+    exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
 

@@ -12,3 +12,8 @@ export const hasChanged = (value: any, oldValue: any): boolean =>
 
 export const isFunction = (val: unknown): val is Function =>
   typeof val === 'function'
+
+// Object.assign() 静态方法将一个或者多个源对象中所有可枚举的自有属性复制到目标对象，并返回修改后的目标对象。
+export const extend = Object.assign
+
+export const EMPTY_OBJ: { readonly [key: string]: any } = {}
