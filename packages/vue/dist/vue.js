@@ -17,6 +17,7 @@ var Vue = (function (exports) {
     };
     // Object.assign() 静态方法将一个或者多个源对象中所有可枚举的自有属性复制到目标对象，并返回修改后的目标对象。
     var extend = Object.assign;
+    var EMPTY_OBJ = {};
 
     /******************************************************************************
     Copyright (c) Microsoft Corporation.
@@ -124,6 +125,7 @@ var Vue = (function (exports) {
             activeEffect = this;
             return this.fn();
         };
+        ReactiveEffect.prototype.stop = function () { };
         return ReactiveEffect;
     }());
     /**
@@ -321,6 +323,9 @@ var Vue = (function (exports) {
     var toReactive = function (value) {
         return isObject(value) ? reactive(value) : value;
     };
+    function isReactive(value) {
+        return !!(value && value["__v_isReactive" /* ReactiveFlags.IS_REACTIVE */]);
+    }
 
     /**
      * 获取一个内部值, 并返回一个响应的 ref 对象。
@@ -501,11 +506,75 @@ var Vue = (function (exports) {
         }
     }
 
+    /**
+     * 创建 watch 方法
+     * @param source 监听对象
+     * @param cb 监听对象修改后执行的函数
+     * @param options 立即执行/深度监听选项
+     */
+    function watch(source, cb, options) {
+        return doWatch(source, cb, options);
+    }
+    function doWatch(source, cb, _a) {
+        var _b = _a === void 0 ? EMPTY_OBJ : _a, immediate = _b.immediate, deep = _b.deep;
+        var getter;
+        if (isReactive(source)) {
+            getter = function () { return source; };
+            deep = true;
+        }
+        else {
+            getter = function () { };
+        }
+        if (cb && deep) {
+            var baseGetter_1 = getter;
+            // traverse() 将对象进行依次调用 执行 reactive 的 getter 方法收集依赖
+            getter = function () { return traverse(baseGetter_1()); };
+        }
+        var oldValue = {};
+        // 获取新值 如果数据发生改变 执行 cb 函数
+        var job = function () {
+            if (cb) {
+                var newValue = effect.run();
+                if (deep || hasChanged(newValue, oldValue)) {
+                    cb(newValue, oldValue);
+                    oldValue = newValue;
+                }
+            }
+        };
+        var scheduler = function () { return queuePreFlushCb(job); };
+        var effect = new ReactiveEffect(getter, scheduler);
+        if (cb) {
+            if (immediate) {
+                job();
+            }
+            else {
+                oldValue = effect.run();
+            }
+        }
+        else {
+            effect.run();
+        }
+        return function () {
+            effect.stop();
+        };
+    }
+    // 递归调用执行对象的每一个 getter 方法
+    function traverse(value) {
+        if (!isObject(value)) {
+            return value;
+        }
+        for (var key in value) {
+            traverse(value[key]);
+        }
+        return value;
+    }
+
     exports.computed = computed;
     exports.effect = effect;
     exports.queuePreFlushCb = queuePreFlushCb;
     exports.reactive = reactive;
     exports.ref = ref;
+    exports.watch = watch;
 
     Object.defineProperty(exports, '__esModule', { value: true });
 

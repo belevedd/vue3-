@@ -311,8 +311,6 @@ class RefImpl<T> {
 
 所以 ref 在调用的时候需要使用 ref.value 的方式。
 
-
-
 ## 3.computed 响应式原理
 
 - 计算属性的实例，本质上是一个 ComputedRefImpl 的实例；
@@ -320,14 +318,3 @@ class RefImpl<T> {
 - 想要访问计算属性的值，必须通过 .value，因为他内部和 ref 一样时通过 get value 来进行实现的；
 - 每次 .value 时都会触发 trackRefValue 即：依赖收集；
 - 在依赖触发时，需要谨记，先触发 computed 的 effect，再触发非 computed 的 effect，以免发生死循环的情况。
-
-
-
-
-
-
-
-
-
-
-

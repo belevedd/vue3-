@@ -59,6 +59,8 @@ export class ReactiveEffect<T = any> {
 
     return this.fn()
   }
+
+  stop() {}
 }
 
 /**
